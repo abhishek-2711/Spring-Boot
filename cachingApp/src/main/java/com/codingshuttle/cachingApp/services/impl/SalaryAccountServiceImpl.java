@@ -31,7 +31,6 @@ public class SalaryAccountServiceImpl implements SalaryAccountService {
     }
 
     @Override
-    @Transactional(isolation = Isolation.SERIALIZABLE)
     public SalaryAccount incrementBalance(Long accountId) {
         SalaryAccount salaryAccount = salaryAccountRepository.findById(accountId)
                 .orElseThrow(() -> new RuntimeException("Account Not Found"));
