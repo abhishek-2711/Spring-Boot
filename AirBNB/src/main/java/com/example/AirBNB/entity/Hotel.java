@@ -1,5 +1,8 @@
 package com.example.AirBNB.entity;
 
+import com.example.AirBNB.entity.HotelContactInfo;
+import com.example.AirBNB.entity.Room;
+import com.example.AirBNB.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -7,6 +10,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Getter
@@ -23,10 +27,10 @@ public class Hotel {
 
     private String city;
 
-    @Column(columnDefinition = "JSON")
+    @Column(columnDefinition = "TEXT[]")
     private String[] photos;
 
-    @Column(columnDefinition = "JSON")
+    @Column(columnDefinition = "TEXT[]")
     private String[] amenities;
 
     @CreationTimestamp
@@ -40,5 +44,11 @@ public class Hotel {
 
     @Column(nullable = false)
     private Boolean active;
+
+    @ManyToOne
+    private User owner;
+
+    @OneToMany(mappedBy = "hotel")
+    private List<Room> rooms;
 
 }
