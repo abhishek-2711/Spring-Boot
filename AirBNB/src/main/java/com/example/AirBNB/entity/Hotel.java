@@ -27,10 +27,10 @@ public class Hotel {
 
     private String city;
 
-    @Column(columnDefinition = "TEXT[]")
+    @Column(columnDefinition = "JSON")
     private String[] photos;
 
-    @Column(columnDefinition = "TEXT[]")
+    @Column(columnDefinition = "JSON")
     private String[] amenities;
 
     @CreationTimestamp
