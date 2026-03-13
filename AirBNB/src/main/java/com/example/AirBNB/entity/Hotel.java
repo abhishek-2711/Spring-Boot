@@ -3,6 +3,7 @@ package com.example.AirBNB.entity;
 import com.example.AirBNB.entity.HotelContactInfo;
 import com.example.AirBNB.entity.Room;
 import com.example.AirBNB.entity.User;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -49,6 +50,7 @@ public class Hotel {
     private User owner;
 
     @OneToMany(mappedBy = "hotel")
+    @JsonIgnore
     private List<Room> rooms;
 
 }
