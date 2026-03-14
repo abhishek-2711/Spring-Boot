@@ -9,6 +9,7 @@ import com.example.AirBNB.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.ResourceAccessException;
@@ -95,6 +96,12 @@ public class BookingServiceImpl implements BookingService {
             throw new IllegalStateException("Booking is expired");
         }
 
+        User user = getCurrentUser();
+
+        if(!user.equals(booking.getUser())) {
+            throw new IllegalStateException("Only the user who made the booking can add guests");
+        }
+
         if(booking.getBookingStatus() != BookingStatus.RESERVED) {
             throw new IllegalStateException("Guests can only be added to RESERVED booking");
         }
@@ -117,8 +124,8 @@ public class BookingServiceImpl implements BookingService {
     }
 
     public User getCurrentUser() {
-        User user = new User();
-        user.setId(1L);
-        return user;
+        return (User) SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
     }
 }
