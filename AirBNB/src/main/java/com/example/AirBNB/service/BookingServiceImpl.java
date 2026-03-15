@@ -5,10 +5,14 @@ import com.example.AirBNB.dto.BookingRequest;
 import com.example.AirBNB.dto.GuestDto;
 import com.example.AirBNB.entity.*;
 import com.example.AirBNB.entity.enums.BookingStatus;
+import com.example.AirBNB.exception.ResourceNotFoundException;
+import com.stripe.model.Event;
 import com.example.AirBNB.repository.*;
+import com.stripe.model.checkout.Session;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -30,6 +35,10 @@ public class BookingServiceImpl implements BookingService {
     private final InventoryRepository inventoryRepository;
     private final ModelMapper modelMapper;
     private final GuestRepository guestRepository;
+    private final CheckoutService checkoutService;
+
+    @Value("${frontend.url}")
+    private String frontendUrl;
 
     @Override
     @Transactional
@@ -118,7 +127,6 @@ public class BookingServiceImpl implements BookingService {
         booking = bookingRepository.save(booking);
         return modelMapper.map(booking, BookingDto.class);
     }
-
     public boolean isBookingExpired(Booking booking) {
         return booking.getCreatedAt().plusMinutes(10).isBefore(LocalDateTime.now());
     }
@@ -128,4 +136,64 @@ public class BookingServiceImpl implements BookingService {
                 .getAuthentication()
                 .getPrincipal();
     }
+
+
+    @Override
+    public String initiatePayment(Long bookingId) {
+        Booking booking = bookingRepository
+                .findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found with ID: " + bookingId));
+
+        if(isBookingExpired(booking)) {
+            throw new IllegalStateException("Booking is expired");
+        }
+
+        User user = getCurrentUser();
+
+        if(!user.equals(booking.getUser())) {
+            throw new IllegalStateException("Only the user who made the booking can initiate payment");
+        }
+
+        if(booking.getBookingStatus() != BookingStatus.CONFIRMED) {
+            throw new IllegalStateException("Payment can only be initiated for CONFIRMED booking");
+        }
+
+        String sessionUrl = checkoutService.getCheckoutSession(
+                booking,
+                frontendUrl+"/payment-success?bookingId="+booking.getId(),
+                frontendUrl+"/payment-failure?bookingId="+booking.getId());
+
+        booking.setBookingStatus(BookingStatus.PAYMENT_PENDING);
+        bookingRepository.save(booking);
+
+        return sessionUrl;
+    }
+
+    @Override
+    @Transactional
+    public void capturePayment(Event event) {
+        if ("checkout.session.completed".equals(event.getType())) {
+            Session session = (Session) event.getDataObjectDeserializer().getObject().orElse(null);
+            if (session == null) return;
+
+            String sessionId = session.getId();
+            Booking booking =
+                    bookingRepository.findByPaymentSessionId(sessionId).orElseThrow(() ->
+                            new ResourceNotFoundException("Booking not found for session ID: "+sessionId));
+
+            booking.setBookingStatus(BookingStatus.CONFIRMED);
+            bookingRepository.save(booking);
+
+            inventoryRepository.findAndLockReservedInventory(booking.getRoom().getId(), booking.getCheckInDate(),
+                    booking.getCheckOutDate(), booking.getRoomsCount());
+
+            inventoryRepository.confirmBooking(booking.getRoom().getId(), booking.getCheckInDate(),
+                    booking.getCheckOutDate(), booking.getRoomsCount());
+
+            log.info("Successfully confirmed the booking for Booking ID: {}", booking.getId());
+        } else {
+            log.warn("Unhandled event type: {}", event.getType());
+        }
+    }
+
 }
